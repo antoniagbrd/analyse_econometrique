@@ -5,13 +5,13 @@ library(readxl)
 library(tidyr) # -> contient plusieurs librairies utiles pour l'analyse de donnees
 library(stringr)
 library(purrr)
-# Lecture des données de 1989, snas Melilla et sans Ceuta
+
+ #### LECTURE ET CHARGEMENT DES DONNEES ####
 
 columns <- c(
               "Tipo convocatoria", # ? 
-              # "ano", # année de l'election (colonne ajoutee, obtenue à partir de Id convocatoria) 
-              "Id convocatoria", # date de lelection sous la forme "aaaamm" 
-              "ccaa", #? 
+              "Id convocatoria", # date de l election sous la forme "aaaamm" 
+              "ccaa",
               "prv", # numero identifiant la province (?)  
               "circunscripcion", 
               "municipio", 
@@ -23,19 +23,18 @@ columns <- c(
               "votos candidaturas", 
               "tipo de representante", 
               "representantes" 
-              # "etranger" # = "oui" ou "non" selon si le votant est à l'étranger ou non (colonne ajoutee)
               )
 
-            # test avec tous fichiers de 1989 
 
-# Liste tous les fichiers .xlsx dans le dossier "Donnees"
-fichiers <- list.files("Donnees", pattern = "\\.xlsx$", full.names = TRUE)
+fichiers <- list.files("Donnees", pattern = "\\.xlsx$", full.names = TRUE) # Liste tous les fichiers .xlsx dans le dossier "Donnees"
 
 donnees_tout <- map_dfr(fichiers, function(f) {
   df <- read_excel(f)
   df <- dplyr::select(df, all_of(columns))
+  
   # conversion des types des colonnes (les erreurs deviennent NA)
   df$votos <- suppressWarnings(as.numeric(df$votos))  
+  
   # Ajouter une colonne "fichier" avec juste le nom du fichier
   nom_fichier <- tools::file_path_sans_ext(basename(f))
   
@@ -56,19 +55,57 @@ donnees_tout <- map_dfr(fichiers, function(f) {
   df$lieu <- str_trim(lieu)  # assure qu'il n'y a pas d'espace avant et après le nom du lieu
   df
 }, .id = "source")
+*
+  
+  
+  
+          ### TESTS SUR LES DONNEES ###
 
-# tests sur les donnees
 length(unique(donnees_tout$lieu)) # doit renvoyer 52, pour 52 provinces
-
-
-# renomme les donnees
-dplyr::rename(donnees_tout, 
-              "annee" = ano, 
-              "latitude" = lat
-              )
+length(unique(donnees_tout$prv))
 
 # Exploration des données
-#str(donnees)
-#summary(donnees)
+#summary(donnees_tout)
 
-# soustraire le nombre de votes de l'etranger au total pour avoir ceux pas à l'etranger pour chaque province ? 
+etranger_counts <- donnees_tout %>% count(etranger)
+print(etranger_counts) # doit renvoyer le même nombre pour "oui" et "non"
+
+#xtabs(~ lieu + etranger + annee_fichier, data = donnees_tout)
+#xtabs(~ prv + etranger + annee_fichier, data = donnees_tout)
+
+#xtabs(~ prv + etranger, data = donnees_tout)
+#xtabs(~ prv + lieu, data = donnees_tout[donnees_tout["prv"]==35,])
+
+#xtabs(~ candidatura + votos, data = donnees_tout)
+
+
+# Creer deux dataframes distincts selon que les données ont etrnger à "oui" ou "non"
+data_oui <- donnees_tout %>% filter(etranger == "oui")
+#data_oui = data_oui[c('annee_fichier', 'prv', 'lieu', 'candidatura')]
+
+data_non <- donnees_tout %>% filter(etranger == "non")
+#data_non = data_non[c('annee_fichier', 'prv', 'lieu', 'candidatura')]
+
+# Calculer le nombre total de votes par année et par parti
+total_votes <- data_non %>% 
+  group_by(annee_fichier, candidatura) %>% 
+  summarise(total_votes = sum(votos))
+
+# Trouver les 8 partis recevant le plus de votes
+top8_partis_par_annee <- data_non %>%
+  group_by(annee_fichier, candidatura) %>%
+  summarise(total_votes = sum(votos), .groups = "drop") %>%
+  group_by(annee_fichier) %>%
+  slice_max(order_by = total_votes, n = 8)
+
+
+
+
+################### A FAIRE / VERIFIER ###############################
+
+# Identifier le(s) parti(s) correspondant au parti conservateur et au parti socialiste, pour chaque année !!!
+
+
+# soustraire le nombre de votes de l'etranger au total pour avoir ceux pas à l'etranger pour chaque province ?
+# election day voters (treatment group) VS Spanish residents abroad (controp group)
+# recreer figure 2 #
