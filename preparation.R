@@ -55,17 +55,16 @@ donnees_tout <- map_dfr(fichiers, function(f) {
   df$lieu <- str_trim(lieu)  # assure qu'il n'y a pas d'espace avant et après le nom du lieu
   df
 }, .id = "source")
-*
+
   
   
   
           ### TESTS SUR LES DONNEES ###
 
 length(unique(donnees_tout$lieu)) # doit renvoyer 52, pour 52 provinces
-length(unique(donnees_tout$prv))
+length(unique(donnees_tout$prv)) # idem
 
 # Exploration des données
-#summary(donnees_tout)
 
 etranger_counts <- donnees_tout %>% count(etranger)
 print(etranger_counts) # doit renvoyer le même nombre pour "oui" et "non"
@@ -79,31 +78,51 @@ print(etranger_counts) # doit renvoyer le même nombre pour "oui" et "non"
 #xtabs(~ candidatura + votos, data = donnees_tout)
 
 
-# Creer deux dataframes distincts selon que les données ont etrnger à "oui" ou "non"
+# Creer deux dataframes distincts selon que les données ont etranger à "oui" ou "non"
 data_oui <- donnees_tout %>% filter(etranger == "oui")
 #data_oui = data_oui[c('annee_fichier', 'prv', 'lieu', 'candidatura')]
 
 data_non <- donnees_tout %>% filter(etranger == "non")
 #data_non = data_non[c('annee_fichier', 'prv', 'lieu', 'candidatura')]
 
-# Calculer le nombre total de votes par année et par parti
-total_votes <- data_non %>% 
-  group_by(annee_fichier, candidatura) %>% 
-  summarise(total_votes = sum(votos))
 
-# Trouver les 8 partis recevant le plus de votes
-top8_partis_par_annee <- data_non %>%
-  group_by(annee_fichier, candidatura) %>%
-  summarise(total_votes = sum(votos), .groups = "drop") %>%
-  group_by(annee_fichier) %>%
-  slice_max(order_by = total_votes, n = 8)
+# check qu'il y'a bien 350 deputes elus par an 
+total_deputes <- donnees_tout %>%  #ou data_non ?
+  group_by(annee_fichier) %>% 
+  summarise(total_deputes = sum(representantes))
+print(total_deputes)
 
+### Il n'y en a que 346 en 2004 !!!!!!! ####
+
+
+# Calculer le nombre total de députés élus par année et par parti
+# total_deputes <- donnees_tout %>%  #ou data_non ?
+  # group_by(annee_fichier, candidatura) %>% 
+  # summarise(total_deputes = sum(representantes))
+
+### IDENTIFER LES PARTIS QUI TOMBENT DANS LE SPECTRE CONSERVATEUR / SOCIALISTE
+
+donnees_tout <- donnees_tout %>%
+  mutate(
+    parti = case_when(
+      str_detect(candidatura, "SOCIALIST") |
+      str_detect(candidatura, "PER CATALUNYA VERDS-ESQUERRA UNIDA") ~ "Parti socialiste",
+      
+      str_detect(candidatura, "POPULAR")|
+      str_detect(candidatura, "PP") ~ "Parti conservateur",
+      
+      TRUE ~ NA_character_ 
+    )
+  )
+
+
+total_deputes_conservateurs_socialistes <- donnees_tout %>%  #ou data_non ?
+  group_by(annee_fichier, parti) %>% 
+  summarise(total_deputes_conservateurs_socialistes = sum(representantes))
 
 
 
 ################### A FAIRE / VERIFIER ###############################
-
-# Identifier le(s) parti(s) correspondant au parti conservateur et au parti socialiste, pour chaque année !!!
 
 
 # soustraire le nombre de votes de l'etranger au total pour avoir ceux pas à l'etranger pour chaque province ?
