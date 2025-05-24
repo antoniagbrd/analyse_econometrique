@@ -11,40 +11,37 @@ library(purrr)
 columns <- c(
               "Tipo convocatoria", # ? 
               "Id convocatoria", # date de l election sous la forme "aaaamm" 
-              "ccaa",
-              "prv", # numero identifiant la province (?)  
-              "circunscripcion", 
-              "municipio", 
-              "distrito", 
+              "ccaa", # numero identifiant la province 1/2
+              "prv", # numero identifiant la province 2/2 
+              "circunscripcion", # NA
+              "municipio", # NA
+              "distrito", # NA
               "candidatura", # parti politique
-              "votos", 
+              "votos", # nombre de votes
               "votos validos", # pourcentage obtenu
               "votos censo",
               "votos candidaturas", 
-              "tipo de representante", 
-              "representantes" 
+              "tipo de representante", # = depute
+              "representantes" # nombre de députés élus
               )
-
 
 fichiers <- list.files("Donnees", pattern = "\\.xlsx$", full.names = TRUE) # Liste tous les fichiers .xlsx dans le dossier "Donnees"
 
 donnees_tout <- map_dfr(fichiers, function(f) {
   df <- read_excel(f)
   df <- dplyr::select(df, all_of(columns))
+  # Convertir la colonne "votos" en entiers
   
-  # conversion des types des colonnes (les erreurs deviennent NA)
-  df$votos <- suppressWarnings(as.numeric(df$votos))  
+  #df$votos <- suppressWarnings(as.numeric(df$votos))  # conversion des types des colonnes (les erreurs deviennent NA)
+  #df$votos <- as.integer(round(df$votos))
+  df$votos <- as.numeric(str_remove_all(df$votos, "\\."))
+  nom_fichier <- tools::file_path_sans_ext(basename(f)) # ajout d'une colonne "fichier" contenant le nom du fichier dont les lignes proviennent
   
-  # Ajouter une colonne "fichier" avec juste le nom du fichier
-  nom_fichier <- tools::file_path_sans_ext(basename(f))
+  df$annee_fichier <- as.numeric(str_extract(nom_fichier, "\\d{4}")) # ajout d'une colonne contenant l'année, extraite du nom du fichier source (premier nombre de 4 chiffres trouvé dans le nom)
   
-  # Extraire l'année (premier nombre de 4 chiffres trouvé dans le nom)
-  df$annee_fichier <- as.numeric(str_extract(nom_fichier, "\\d{4}")) #nouvelle colonne 
+  df$etranger <- ifelse(str_detect(nom_fichier, "- etr"), "oui", "non") # ajout d'une colonne identifiant le type de votants, à l'étranger ou non, en extrayant "- etr" du nom du fichier
   
-  # Déterminer si le fichier a été obtenu pour des votants à l'étranger ou non en extrayant "- etr"
-  df$etranger <- ifelse(str_detect(nom_fichier, "- etr"), "oui", "non") #nouvelle colonne
-  
-  # Extraire le lieu
+  # Ajout d'une colonne contenant le nom du lieu (province)
   reste_nom <- str_remove(nom_fichier, "^\\d{4}\\s*") # enlever la date
   lieu <- ifelse( 
     str_detect(reste_nom, "- etr"),
@@ -55,35 +52,30 @@ donnees_tout <- map_dfr(fichiers, function(f) {
   df$lieu <- str_trim(lieu)  # assure qu'il n'y a pas d'espace avant et après le nom du lieu
   df
 }, .id = "source")
+#### 
+donnees_tout <- donnees_tout %>%
+  mutate(
+    votos = as.numeric(str_remove_all(votos, "\\."))
+  )   # Suppression des points dans les valeurs du nombre de votes
+  
 
-  
-  
   
           ### TESTS SUR LES DONNEES ###
 
 length(unique(donnees_tout$lieu)) # doit renvoyer 52, pour 52 provinces
 length(unique(donnees_tout$prv)) # idem
-
-# Exploration des données
+unique(donnees_tout[c('lieu', 'prv')]) # doit renvoyer 52 lignes
 
 etranger_counts <- donnees_tout %>% count(etranger)
 print(etranger_counts) # doit renvoyer le même nombre pour "oui" et "non"
+ # autres explorations
+xtabs(~ lieu + etranger + annee_fichier, data = donnees_tout)
+xtabs(~ prv + etranger + annee_fichier, data = donnees_tout)
 
-#xtabs(~ lieu + etranger + annee_fichier, data = donnees_tout)
-#xtabs(~ prv + etranger + annee_fichier, data = donnees_tout)
+xtabs(~ prv + etranger, data = donnees_tout)
 
-#xtabs(~ prv + etranger, data = donnees_tout)
-#xtabs(~ prv + lieu, data = donnees_tout[donnees_tout["prv"]==35,])
+# ...
 
-#xtabs(~ candidatura + votos, data = donnees_tout)
-
-
-# Creer deux dataframes distincts selon que les données ont etranger à "oui" ou "non"
-data_oui <- donnees_tout %>% filter(etranger == "oui")
-#data_oui = data_oui[c('annee_fichier', 'prv', 'lieu', 'candidatura')]
-
-data_non <- donnees_tout %>% filter(etranger == "non")
-#data_non = data_non[c('annee_fichier', 'prv', 'lieu', 'candidatura')]
 
 
 # check qu'il y'a bien 350 deputes elus par an 
@@ -95,36 +87,60 @@ print(total_deputes)
 ### Il n'y en a que 346 en 2004 !!!!!!! ####
 
 
-# Calculer le nombre total de députés élus par année et par parti
-# total_deputes <- donnees_tout %>%  #ou data_non ?
-  # group_by(annee_fichier, candidatura) %>% 
-  # summarise(total_deputes = sum(representantes))
 
-### IDENTIFER LES PARTIS QUI TOMBENT DANS LE SPECTRE CONSERVATEUR / SOCIALISTE
+
+### IDENTIFICATION DES PARTIS QUI TOMBENT DANS LE SPECTRE CONSERVATEUR vs SOCIALISTE
 
 donnees_tout <- donnees_tout %>%
   mutate(
     parti = case_when(
-      str_detect(candidatura, "SOCIALIST") |
-      str_detect(candidatura, "PER CATALUNYA VERDS-ESQUERRA UNIDA") ~ "Parti socialiste",
+      str_detect(candidatura, "SOCIALIST") & !str_detect(candidatura, "NUEVO PARTIDO") & !str_detect(candidatura, "OCTUBRE") & !str_detect(candidatura, "UN NOU PARTIT") & !str_detect(candidatura, "INDEPENDIENTES") & !str_detect(candidatura, "IND.") & !str_detect(candidatura, "TRABAJADORES") & !str_detect(candidatura, "TRABALLADORES") & !str_detect(candidatura, "INTERNACIONAL")
+      # str_detect(candidatura, "PER CATALUNYA VERDS-ESQUERRA UNIDA") 
+      #str_detect(candidatura, "^PARTIDO SOCIALISTA OBRERO ESPAÃ‘OL$") 
+      #str_detect(candidatura, "PARTIDO SOCIALISTA") 
+      ~ "Parti socialiste",
       
       str_detect(candidatura, "POPULAR")|
-      str_detect(candidatura, "PP") ~ "Parti conservateur",
+      str_detect(candidatura, "PP") 
+      #str_detect(candidatura, "^PARTIDO POPULAR$") 
+      #str_detect(candidatura, "PARTIDO POPULAR")
+      ~ "Parti conservateur",
       
-      TRUE ~ NA_character_ 
+      TRUE ~ "autres partis" 
     )
   )
+# Afficher tous les partis qui entrent dans la catégorie "Parti socialiste" (#par année)
+donnees_tout %>%
+  filter(parti == "Parti socialiste"
+         #,annee_fichier==1989
+         ) %>%
+  distinct(candidatura, .keep_all = FALSE) %>%
+  print(n=26)
+
+# Afficher tous les partis qui entrent dans la catégorie "Parti conservateur" (#par année)
+donnees_tout %>%
+  filter(parti == "Parti conservateur"
+         #, annee_fichier == 1989
+         ) %>%
+  distinct(candidatura, .keep_all = FALSE) %>%
+  print(n=14)
+
+# Creer deux dataframes distincts selon que les données ont etranger à "oui" ou "non"
+data_oui <- donnees_tout %>% filter(etranger == "oui")
+data_oui = data_oui[c('annee_fichier', 'prv', 'lieu', 'candidatura', 'votos', 'parti')]
+
+data_non <- donnees_tout %>% filter(etranger == "non")
+data_non = data_non[c('annee_fichier', 'prv', 'lieu', 'candidatura', 'votos', 'parti')]
 
 
-total_deputes_conservateurs_socialistes <- donnees_tout %>%  #ou data_non ?
-  group_by(annee_fichier, parti) %>% 
-  summarise(total_deputes_conservateurs_socialistes = sum(representantes))
+ #### si je decide de supprimer les valeurs des votes de xxx_oui dans xxx_non 
 
 
+# Effectuer une jointure entre data_non et data_oui
+data_non <- data_non %>%
+  left_join(data_oui, by = c("annee_fichier", "prv", "lieu", "candidatura", "parti"), suffix = c("", "_oui"))
 
-################### A FAIRE / VERIFIER ###############################
-
-
-# soustraire le nombre de votes de l'etranger au total pour avoir ceux pas à l'etranger pour chaque province ?
-# election day voters (treatment group) VS Spanish residents abroad (controp group)
-# recreer figure 2 #
+# Soustraire les valeurs de "votos" de data_oui de celles de data_non
+data_non <- data_non %>%
+  mutate(votos = votos - votos_oui) %>%
+  select(-votos_oui) # Supprimer la colonne temporaire "votos_oui"
