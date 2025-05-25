@@ -19,4 +19,4 @@ df <- donnees_tout%>%
 # OLS <- lm(ratio ~ lambda + G_g + DG_gt + nu_gt + u_it, data = df)
 # transformer la colonne etranger pour avoir 1/0 à la place de oui/non
 # creer / ajouter la colonne DG -> vaut un pour election de 2004 pour group des non etrangers 
-# ajouter lambda et nu 
+# ajouter lambda et nu (enfin pas nu tout de suite parce qu'on se fiche de l'unobserved group/time effect dans un premier temps)
