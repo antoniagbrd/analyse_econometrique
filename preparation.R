@@ -5,6 +5,7 @@ library(readxl)
 library(tidyr) # -> contient plusieurs librairies utiles pour l'analyse de donnees
 library(stringr)
 library(purrr)
+library(dplyr)
 
  #### LECTURE ET CHARGEMENT DES DONNEES ####
 
@@ -52,12 +53,7 @@ donnees_tout <- map_dfr(fichiers, function(f) {
   df$lieu <- str_trim(lieu)  # assure qu'il n'y a pas d'espace avant et après le nom du lieu
   df
 }, .id = "source")
-#### 
-donnees_tout <- donnees_tout %>%
-  mutate(
-    votos = as.numeric(str_remove_all(votos, "\\."))
-  )   # Suppression des points dans les valeurs du nombre de votes
-  
+
 
   
           ### TESTS SUR LES DONNEES ###
@@ -127,13 +123,15 @@ donnees_tout %>%
 
 # Creer deux dataframes distincts selon que les données ont etranger à "oui" ou "non"
 data_oui <- donnees_tout %>% filter(etranger == "oui")
-data_oui = data_oui[c('annee_fichier', 'prv', 'lieu', 'candidatura', 'votos', 'parti')]
+data_oui = data_oui[c('annee_fichier', 'prv', 'lieu', 'candidatura', 'votos', 'parti')] # ne garde que les colonnes d'intérêt
 
 data_non <- donnees_tout %>% filter(etranger == "non")
-data_non = data_non[c('annee_fichier', 'prv', 'lieu', 'candidatura', 'votos', 'parti')]
+data_non = data_non[c('annee_fichier', 'prv', 'lieu', 'candidatura', 'votos', 'parti')] # ne garde que les colonnes d'intérêt
 
 
- #### si je decide de supprimer les valeurs des votes de xxx_oui dans xxx_non 
+#####ATTENTION SUITE OPTIONNELLE#######
+
+ #### si je decide de supprimer les valeurs des votes de xxx_oui dans xxx_non (ie si les votes des non residentials sont inclus dans ceux des residentials)
 
 
 # Effectuer une jointure entre data_non et data_oui
