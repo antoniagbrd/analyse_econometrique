@@ -1,4 +1,4 @@
-source(preparation.R)
+source("preparation.R")
 #Obtenir statistiques descriptives
 
 df <- donnees_tout%>%
@@ -15,8 +15,13 @@ df <- donnees_tout%>%
   select(annee_fichier, lieu, etranger, ratio)
 ################ A FAIRE / A SAVOIR  ########################
 
-    # rappel : control group = residents abroad (ie etranger = oui) vs treatment group = spanish residents (etranger = non
+View(df)
+    # rappel : control group = residents abroad (ie etranger = oui) vs treatment group = spanish residents (etranger = non)
 # OLS <- lm(ratio ~ lambda + G_g + DG_gt + nu_gt + u_it, data = df)
 # transformer la colonne etranger pour avoir 1/0 à la place de oui/non
+df$etranger <- ifelse(df$etranger == "oui",1,0)
+
 # creer / ajouter la colonne DG -> vaut un pour election de 2004 pour group des non etrangers 
+df$DG <- ifelse(df$etranger == 0 & df$annee_fichier == 2004, 1,0)
+
 # ajouter lambda et nu (enfin pas nu tout de suite parce qu'on se fiche de l'unobserved group/time effect dans un premier temps)
