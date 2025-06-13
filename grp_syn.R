@@ -188,7 +188,7 @@ ggplot(fig3_data, aes(x = Year, y = Value, color = Group, linetype = Group)) +
 
 
 
-
+# Test pour un nouveau commit
 
 
 
