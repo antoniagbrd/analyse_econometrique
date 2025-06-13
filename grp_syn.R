@@ -3,6 +3,13 @@ library(dplyr)
 votes_par_parti <- donnees_tout %>%
   group_by(lieu, annee_fichier, etranger, parti) %>%
   summarise(votos = sum(votos), .groups = "drop")
+
+# Création d'une catégorie "Spain" qui donne le nombre total de vote dans tous le pays pour chaque indicateur dans les autres colonnes
+spain <- votes_par_parti %>% group_by(annee_fichier, etranger, parti) %>% summarise(votos = sum(votos), .groups = "drop") %>%
+  mutate(lieu = "Spain") %>% select(lieu, annee_fichier, etranger, parti, votos)
+
+votes_par_parti <- bind_rows(votes_par_parti, spain)
+
 # Total des votes par groupe (lieu, année, etranger)
 totaux <- votes_par_parti %>%
   group_by(lieu, annee_fichier, etranger) %>%
@@ -18,6 +25,8 @@ resultats <- df_jointure %>%
     .groups = "drop"
   ) %>%
   mutate(ratio_conservateur_socialiste = pct_conservateur / pct_socialiste)
+
+#Groupe traité
 groupe_traite <- resultats %>%
   filter(etranger == "non") %>%
   select(lieu, annee_fichier, pct_conservateur, ratio_conservateur_socialiste) %>%
@@ -43,13 +52,15 @@ vars_utiles <- c(
   "ratio_conservateur_socialiste_2000"
 )
 #creation de X0 et X1
-# X1: vecteur des caractéristiques du grp traité(on prend une seule province traité en 2004)
-# par exemple : on prend la première province du table
-X1 <- groupe_traite[1, vars_utiles] %>% as.numeric() %>% matrix(ncol = 1)
+# X1: vecteur des caractéristiques du grp traité
+# Option 1 : on prend une seule province traité en 2004), par exemple la première province du tableau
+# X1 <- groupe_traite[1, vars_utiles] %>% as.numeric() %>% matrix(ncol = 1)
+# Option 2 : on considère l'enseble des états espagnols
+X1 <- groupe_traite[ 50, vars_utiles] %>% as.numeric() %>% matrix(ncol = 1)
 X0 <- groupe_controle[, vars_utiles] %>% as.matrix()
 
-dim(X1)  # Doit être 4 x 1 (on a 4 caractéristiques et une seule province)
-dim(X0)  # Doit être 52 x 4 (on a 4 caractéristiques et 52 provinces (non residents))
+dim(X1)  # Doit être 4 x 1 (on a 4 caractéristiques pour un seul individu)
+dim(X0)  # Doit être 52 x 4 (on a 4 caractéristiques pour chacune des 52 provinces (non residents))
 install.packages("quadprog") 
 library(quadprog)
 #preparer les matrices X0 et X1
