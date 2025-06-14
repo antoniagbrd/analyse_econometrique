@@ -188,10 +188,6 @@ ggplot(fig3_data, aes(x = Year, y = Value, color = Group, linetype = Group)) +
 
 
 
-# Test pour un nouveau commit
-
-
-
 ### SI ON N'A PAS FAIT LE LIEU "SPAIN" AU PREALABLE (moyenne imparfaites)
 
 # Extraire les valeurs numériques des 4 caractéristiques du groupe traité
