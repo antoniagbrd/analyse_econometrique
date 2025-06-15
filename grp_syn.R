@@ -191,6 +191,7 @@ RMSE_data = resultats[c(6,7,8,9), ]
 RMSE <- sqrt(mean((RMSE_data$valeur_traite - RMSE_data$valeur_synthetique)^2))
 print(RMSE)
 
+
 ### SI ON N'A PAS FAIT LE LIEU "SPAIN" AU PREALABLE (moyenne imparfaites)
 
 # Extraire les valeurs numériques des 4 caractéristiques du groupe traité
