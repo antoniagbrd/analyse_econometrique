@@ -244,7 +244,3 @@ groupe_synthetique_df_filtre$annee <- seq_len(nrow(groupe_synthetique_df_filtre)
 fusion <- left_join(moyennes_traite, groupe_synthetique_df_filtre, by = "annee")
 fusion_reduite <- fusion %>%
   select(Variable, Traité, valeur_synthetique)
-
-
-
-
