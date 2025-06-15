@@ -142,8 +142,3 @@ data_non <- data_non %>%
 data_non <- data_non %>%
   mutate(votos = votos - votos_oui) %>%
   select(-votos_oui) # Supprimer la colonne temporaire "votos_oui"
-
-
-
-
-
