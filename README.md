@@ -1,5 +1,5 @@
 # analyse_econometrique
-Replication of results from José G. Montalvo's 2011 article "Voting after the bombings : a natural experiment on the effect of terrorist attacks on democratic elections".
+'montalvo.pdf' is our replication of results from José G. Montalvo's 2011 article "Voting after the bombings : a natural experiment on the effect of terrorist attacks on democratic elections".
 
 The preparation.R file corresponds to the preparation of the data prior to processing. 
 
