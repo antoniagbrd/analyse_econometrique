@@ -179,7 +179,6 @@ ggplot(fig3_data, aes(x = Year, y = Value, color = Group, linetype = Group)) +
   scale_linetype_manual(values = c("Treated" = "solid", "Synthetic" = "dashed")) +
   theme_minimal() +
   labs(
-    title = "Trends in the ratio of conservative to socialist votes : \nTreated aggregate group versus synthetic control group",
     x = "Year",
     y = "Ratio votes conservatives over socialists",
     color = "Unit",
@@ -187,10 +186,10 @@ ggplot(fig3_data, aes(x = Year, y = Value, color = Group, linetype = Group)) +
 
 
 
-
-# Test pour un nouveau commit
-
-
+### ROOT MEAN SQUARED ERROR
+RMSE_data = resultats[c(6,7,8,9), ] 
+RMSE <- sqrt(mean((RMSE_data$valeur_traite - RMSE_data$valeur_synthetique)^2))
+print(RMSE)
 
 ### SI ON N'A PAS FAIT LE LIEU "SPAIN" AU PREALABLE (moyenne imparfaites)
 
