@@ -75,12 +75,28 @@ deputes_par_annee <- donnees %>%
 cat("\nNombre de députés par année :\n")
 print(deputes_par_annee)
 
-# Graphe de vérification visuelle (tendance pré-traitement) -> à améliorer
-ggplot(votes_agg, aes(x = annee, y = ratio, color = as.factor(etranger))) +
-  geom_line(aes(group = lieu), alpha = 0.5) +
-  labs(title = "Ratio PP / PSOE par année et par groupe",
-       x = "Année", y = "Ratio conservateurs / socialistes", color = "Expatrié") +
-  theme_minimal()
+# Graphe de vérification visuelle (tendance pré-traitement) : moyennes par groupe (résidents/expatriés) et année
+votes_agg %>%
+  group_by(annee, etranger) %>%
+  summarise(mean_ratio = mean(ratio, na.rm = TRUE),
+            sd_ratio = sd(ratio, na.rm = TRUE),
+            n = n(),
+            se_ratio = sd_ratio / sqrt(n),
+            .groups = "drop") %>%
+  ggplot(aes(x = annee, y = mean_ratio, color = as.factor(etranger))) +
+  geom_line(size = 1.2) +
+  geom_point(size = 2) +
+  geom_errorbar(aes(ymin = mean_ratio - se_ratio, ymax = mean_ratio + se_ratio),
+                width = 0.3, alpha = 0.5) +
+  geom_vline(xintercept = 2004, linetype = "dashed", color = "black") +
+  labs(title = "Average evolution of the PP / PSOE ratio by group",
+       subtitle = "Parallel trend check (pre-2004)",
+       x = "Year", y = "Conservatives / Socialists ratio",
+       color = "Group") +
+  scale_color_manual(values = c("red", "steelblue"),
+                     labels = c("Residents", "Expatriates")) +
+  theme_minimal() +
+  theme(legend.position = "bottom")
 
 # Graphe ratio conservateurs/socialistes – agrégé par groupe et année
 votes_agg %>%
@@ -99,11 +115,11 @@ votes_agg %>%
 
 # Graphe boxplot des ratios par année et par groupe
 votes_agg %>%
-  mutate(groupe = ifelse(etranger == 1, "Étrangers", "Résidents")) %>%
-  ggplot(aes(x = factor(annee), y = ratio, fill = groupe)) +
+  mutate(group = ifelse(etranger == 1, "Foreigners", "Residents")) %>%
+  ggplot(aes(x = factor(annee), y = ratio, fill = group)) +
   geom_boxplot(position = position_dodge(0.8)) +
-  labs(title = "Distribution du ratio PP/PSOE par année et groupe",
-       x = "Année", y = "Ratio conservateur/socialiste") +
+  labs(title = "Distribution of the PP/PSOE ratio by year and group",
+       x = "Year", y = "Conservative/Socialist ratio") +
   theme_minimal()
 
 # Variables DiD
@@ -130,12 +146,12 @@ votes_did <- votes_agg %>%
 votes_did %>%
   filter(annee < 2004) %>%
   group_by(annee, etranger) %>%
-  summarise(ratio_moy = mean(ratio, na.rm = TRUE), .groups = "drop") %>%
-  ggplot(aes(x = annee, y = ratio_moy, color = as.factor(etranger))) +
+  summarise(ratio_avg = mean(ratio, na.rm = TRUE), .groups = "drop") %>%
+  ggplot(aes(x = annee, y = ratio_avg, color = as.factor(etranger))) +
   geom_line(size = 1.2) +
-  scale_color_manual(values = c("blue", "red"), labels = c("Résidents", "Étrangers")) +
-  labs(title = "Test de tendance parallèle avant traitement",
-       x = "Année", y = "Ratio PP/PSOE", color = "Groupe") +
+  scale_color_manual(values = c("blue", "red"), labels = c("Residents", "Foreigners")) +
+  labs(title = "Parallel trend test before treatment",
+       x = "Year", y = "PP/PSOE Ratio", color = "Group") +
   theme_minimal()
 
 ###### VERIFICATION DES HYPOTHESES ######
@@ -179,6 +195,47 @@ summary(mod_fe)
 mod_fe_cluster <- feols(ratio ~ did | lieu + annee, cluster = ~lieu, data = votes_did)
 summary(mod_fe_cluster)
 
+## Modèle pondéré
+
+# 1. aperçus des colonnes disponibles
+glimpse(votes_did)
+summary(votes_did)
+
+# 2. vérifier si on a une variable représentant le nombre de votants
+# (on suppose ici une colonne "votants" ou un équivalent à créer par somme des votes)
+
+# création d'une variable totale si elle n'existe pas
+# suppose qu'on ait plusieurs colonnes de votes par parti : votes_pp, votes_psoe, etc.
+
+votes_did <- votes_did %>%
+  mutate(votants_total = rowSums(select(., starts_with("votes_")), na.rm = TRUE))  # à adapter selon ton jeu de données
+
+# 3. agrégation par lieu et année
+votants_par_lieu_annee <- votes_did %>%
+  group_by(lieu, annee) %>%
+  summarise(votants_total_lieu = sum(votants_total, na.rm = TRUE)) %>%
+  ungroup()
+
+# 4. intégration dans la base pour pondérer ensuite
+#votes_did <- votes_did %>%
+ # left_join(votants_par_lieu_annee, by = c("lieu", "annee"))
+
+# Crée une variable de pondération simple : total de votes pour les deux partis
+votes_did <- votes_did %>%
+  mutate(votants_total_lieu = conservateur + socialiste)
+
+# Vérifie que la somme est non nulle
+summary(votes_did$votants_total_lieu)
+
+# Supprime les lignes avec NA ou 0 si nécessaire
+votes_did <- votes_did %>%
+  filter(!is.na(votants_total_lieu), votants_total_lieu > 0)
+
+# Estimation pondérée
+mod_fe_weighted <- feols(ratio ~ did | lieu + annee, weights = ~votants_total_lieu, data = votes_did)
+summary(mod_fe_weighted)
+
+
 ###### TEST DE ROBUSTESSE PAR PLACEBO (ANNEE 2000) ######
 # ce test vérifie que l'effet estimé en 2004 n’apparaît pas dans d'autres années non traitées.
 
@@ -208,26 +265,40 @@ summary(mod_log)
 ###### VISUALISATIONS D’ACCOMPAGNEMENT ######
 
 # Histogramme du ratio
-hist(votes_did$ratio, breaks = 40, col = "skyblue", main = "Distribution du ratio PP/PSOE")
+hist(votes_did$ratio, breaks = 40, col = "skyblue", main = "Distribution of the PP/PSOE ratio")
 
 # Histogramme du log(ratio)
 ggplot(votes_did, aes(x = log(ratio))) +
   geom_histogram(bins = 30, fill = "steelblue") +
-  labs(title = "Distribution de log(ratio)", x = "log(ratio)", y = "n") +
+  labs(title = "Distribution of the logarithm of the PP/PSOE ratio",
+       x = "Log-transformed PP/PSOE ratio",
+       y = "Number of observations") +
   theme_minimal()
 
-# Reproduction de la figure 2
-ratio_figure2 <- votes_did %>%
-  group_by(annee, etranger) %>%
-  summarise(ratio_moy = mean(ratio, na.rm = TRUE), .groups = "drop") %>%
-  mutate(Groupe = ifelse(etranger == 0, "Résidents", "Étrangers"))
+# Données comparatives des coefficients
+did_comp <- tribble(
+  ~source,        ~estimate, ~lower, ~upper,
+  "Montalvo (2011)",  -0.60,    -0.79, -0.41,
+  "Our Replication",  -0.605,   -0.68, -0.53
+)
 
-ggplot(ratio_figure2, aes(x = annee, y = ratio_moy, color = Groupe, linetype = Groupe)) +
-  geom_line(size = 1.1) +
-  geom_vline(xintercept = 2004, linetype = "dotted", color = "black") +
-  labs(title = "Ratio PP/PSOE par groupe (réplication Figure 2)",
-       y = "Ratio moyen conservateurs/socialistes") +
-  theme_minimal()
+# Graphique ggplot2
+did_comp <- tribble(
+  ~source,        ~estimate, ~lower, ~upper,
+  "Montalvo (2011)",  -0.60,    -0.79, -0.41,
+  "Our Replication",  -0.605,   -0.68, -0.53
+)
+
+ggplot(did_comp, aes(x = source, y = estimate)) +
+  geom_point(size = 3, color = "black") +
+  geom_errorbar(aes(ymin = lower, ymax = upper), width = 0.2, size = 1.2, color = "steelblue") +
+  geom_hline(yintercept = 0, linetype = "dotted", color = "gray40") +
+  labs(
+    title = "Comparative DiD Estimates (Montalvo vs. Replication)",
+    x = "", y = "Estimated DiD Coefficient"
+  ) +
+  theme_minimal(base_size = 13) +
+  theme(axis.text.x = element_text(face = "bold"))
 
 ###### RECAP ######
 # TABLEAU RÉCAP DES RÉSULTATS 
